@@ -142,9 +142,12 @@ listings, so the match screen leads.
 
 ## Cover image
 
-itch wants 630 x 500. None of the screenshots crop to that well, since they are
-all 16:9. Either make one, or crop `game.png` around the board so the discs
-survive the aspect change.
+`media/cover.png`, already at itch's 630 x 500. It was rendered by Godot from the
+game's own `Design` tokens and its real Bungee face rather than drawn separately,
+so it cannot drift from how the game looks. Upload it as the cover.
+
+The 16:9 screenshots are all the wrong shape for this slot, which is why the
+cover is its own image rather than a crop.
 
 ## Before the first push
 
