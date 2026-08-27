@@ -152,6 +152,6 @@ survive the aspect change.
 HTML, then take an API key from https://itch.io/user/settings/api-keys and add
 it to the repository as the secret `BUTLER_API_KEY`.
 
-The workflow pushes to `regiellis/reversi:html`. If the project ends up at a
+The workflow pushes to `paperenigma/reversi:html`. If the project ends up at a
 different URL slug, change `ITCH_TARGET` in `.github/workflows/pages.yml` to
 match, or the push will fail with a project-not-found error.
