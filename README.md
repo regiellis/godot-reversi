@@ -218,7 +218,7 @@ ran in parallel throughout, so that is elapsed time and not a measure of effort.
 ## Credits and licence
 
 The game, the widget kit, and the board renderer were written for this project and are MIT licensed.
-See [LICENSE](LICENSE), which also records the terms of the bundled assets.
+See [LICENSE](LICENSE). The bundled assets keep their own terms, recorded in [NOTICE](NOTICE).
 
 **The people credited below are not associated with this project and have not endorsed it.** Their
 work is used under licences that permit reuse. A CC0 release, an OFL font, or an MIT kit grants
