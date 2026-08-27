@@ -1,0 +1,7 @@
+# Normalize line endings for every file Git considers text.
+* text=auto eol=lf
+
+# Binary assets Git should not touch.
+*.ogg  binary
+*.ttf  binary
+*.png  binary
