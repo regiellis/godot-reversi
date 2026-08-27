@@ -126,7 +126,12 @@ jobs:
       # Skipped when the secret is absent, so a fork still deploys Pages without
       # needing it. butler is fetched from itch's own server rather than a
       # third-party action, which keeps the Actions allowlist at GitHub-owned.
+      # Never blocks the site. itch is a second destination, and a problem there
+      # (a project not created yet, itch down, a rotated key) must not stop
+      # https://regiellis.github.io/godot-reversi/ from deploying. The step
+      # reports what happened and lets the run continue.
       - name: Publish the game to itch.io
+        continue-on-error: true
         if: github.ref == 'refs/heads/main' && env.BUTLER_API_KEY != ''
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
@@ -141,7 +146,14 @@ jobs:
 
           # The channel name "html" is what tells itch to play this in a browser
           # rather than offer it as a download.
-          "${HOME}/butler/butler" push build/web/game "${ITCH_TARGET}"             --userversion "${GITHUB_SHA::7}"
+          if ! "${HOME}/butler/butler" push build/web/game "${ITCH_TARGET}"               --userversion "${GITHUB_SHA::7}"; then
+            echo "::warning::butler could not push to ${ITCH_TARGET}."
+            echo "::warning::'invalid game' means the itch project does not exist yet:"
+            echo "::warning::create it at itch.io/game/new with Kind of project = HTML,"
+            echo "::warning::and make its URL slug match the one in ITCH_TARGET."
+            echo "::warning::'bad user' means the username in ITCH_TARGET is wrong."
+            exit 1
+          fi
           "${HOME}/butler/butler" status "${ITCH_TARGET}"
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
