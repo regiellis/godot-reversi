@@ -20,6 +20,8 @@ const TURN_THINKING := "COMPUTER THINKING"
 const PASS_BLACK := "No legal move. Black passes."
 const PASS_WHITE := "No legal move. White passes."
 const CORNER_TOAST := "Corner taken."
+const COACH_TOAST := "That opens a corner for %s."
+const UNDO_LABEL := "UNDO"
 const CENTRE_PASS := "PASS"
 const NO_MOVE_TEXT := "-"
 
@@ -42,6 +44,12 @@ const CORNERS: Array[Vector2i] = [
 	Vector2i(0, 0), Vector2i(7, 0), Vector2i(0, 7), Vector2i(7, 7),
 ]
 
+## The panel's button row: HINT, UNDO, PAUSE across the panel's width, on the
+## line the scene places HINT. Tighter than the panel gap, because three
+## buttons at SPACE_MD would each come out under a JuiceButton's minimum width.
+const BUTTON_ROW_Y := 1183.0
+const BUTTON_GAP := Design.SPACE_SM
+
 
 @onready var _board_view: BoardView = %Board
 @onready var _camera: Camera2D = %Camera
@@ -56,6 +64,10 @@ const CORNERS: Array[Vector2i] = [
 @onready var _pause_button: JuiceButton = %PauseButton
 @onready var _centre: Label = %CentreMessage
 
+## Built in _ready from HINT rather than authored in the scene, the way the
+## settings rows are: it is HINT with another label, and a copy cannot drift.
+var _undo_button: JuiceButton = null
+
 var _board := ReversiBoard.new()
 var _turn: int = ReversiBoard.BLACK
 
@@ -69,6 +81,17 @@ var _mode: int = Session.Mode.HOTSEAT
 var _difficulty: int = ReversiAI.Level.NORMAL
 var _human: int = ReversiBoard.BLACK
 var _show_hints := true
+var _coach := true
+
+## The coach's read of the current turn: cell -> corners that move would hand
+## the other side. Kept here as well as on the board so the toast after the
+## move can say what the board showed before it.
+var _corner_warnings: Dictionary = {}
+
+## One snapshot per human turn, taken as the turn opens. UNDO drops the turn on
+## screen and restores the one before it, so against the computer it takes back
+## the player's move and the reply together.
+var _history: Array[Dictionary] = []
 var _pause: Node = null
 var _sub_overlay: Node = null
 var _last_cell: Vector2i = BoardView.NO_CELL
@@ -97,8 +120,11 @@ func _ready() -> void:
 	Juice.register_camera(_camera)
 	Settings.changed.connect(_on_setting_changed)
 
+	# Before HINT's own connection, so the copy carries none of it.
+	_build_undo()
 	_board_view.cell_clicked.connect(_on_cell_clicked)
 	_hint_button.pressed.connect(_on_hint_pressed)
+	_undo_button.pressed.connect(_on_undo_pressed)
 	_pause_button.pressed.connect(_open_pause)
 
 	_board_view.set_board(_board)
@@ -152,6 +178,40 @@ func _read_session() -> void:
 		_rng.seed = Session.seed_value
 	_hint_rng.randomize()
 	_show_hints = bool(Settings.get_value("game/show_hints", true))
+	_coach = bool(Settings.get_value("game/coach", true))
+
+
+## Three equal plates across the panel. Static so a check can read the same
+## boxes the screen places.
+static func button_row() -> Array[Rect2]:
+	var width := (Design.PANEL_RECT.size.x - BUTTON_GAP * 2.0) / 3.0
+	var row: Array[Rect2] = []
+	for i in 3:
+		row.append(Rect2(
+			Design.PANEL_RECT.position.x + (width + BUTTON_GAP) * float(i),
+			BUTTON_ROW_Y, width, Design.BUTTON_H
+		))
+	return row
+
+
+func _build_undo() -> void:
+	# Groups and script only: a copy that kept HINT's signal connections would
+	# ask for a hint every time it was pressed.
+	_undo_button = _hint_button.duplicate(
+		Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS
+	) as JuiceButton
+	_undo_button.name = "UndoButton"
+	_undo_button.text = UNDO_LABEL
+	add_child(_undo_button)
+	move_child(_undo_button, _hint_button.get_index() + 1)
+	var row := button_row()
+	var buttons: Array[JuiceButton] = [_hint_button, _undo_button, _pause_button]
+	for i in buttons.size():
+		# The minimum first: a Control never shrinks below it, and the scene's
+		# minimum is the width the button had when the row held two.
+		buttons[i].custom_minimum_size = row[i].size
+		buttons[i].position = row[i].position
+		buttons[i].size = row[i].size
 
 
 func _style_labels() -> void:
@@ -194,13 +254,52 @@ func _begin_turn() -> void:
 		await _take_cpu_turn()
 		return
 
+	_history.append({
+		"board": _board.clone(),
+		"turn": _turn,
+		"last_cell": _last_cell,
+		"last_flips": _last_flips,
+		"played": _played.duplicate(),
+	})
 	_busy = false
-	_board_view.hints = _hint_cells()
+	_arm_board()
 	_board_view.interactive = true
+	_undo_button.disabled = not _can_undo()
+
+
+## What the board shows on a human turn: the legal-move markers and the flip
+## preview behind SHOW LEGAL MOVES, the corner warnings behind COACH.
+func _arm_board() -> void:
+	_board_view.hints = _hint_cells()
+	_board_view.preview_moves = _moves if _show_hints else {}
+	_board_view.preview_player = _turn
+	_corner_warnings = _opened_corners() if _coach else {}
+	_board_view.corner_warnings = _corner_warnings
 	_board_view.queue_redraw()
 
 
+## Corners each legal move would make playable for the other side that are not
+## playable for it already. A corner that is open either way is not this move's
+## fault, and warning about it would teach the wrong thing.
+func _opened_corners() -> Dictionary:
+	var foe := ReversiBoard.opponent(_turn)
+	var before := _board.valid_moves(foe)
+	var opened := {}
+	for cell: Vector2i in _moves:
+		var child := _board.clone()
+		child.apply_move(cell, _turn)
+		var after := child.valid_moves(foe)
+		var given: Array[Vector2i] = []
+		for corner: Vector2i in CORNERS:
+			if after.has(corner) and not before.has(corner):
+				given.append(corner)
+		if not given.is_empty():
+			opened[cell] = given
+	return opened
+
+
 func _take_cpu_turn() -> void:
+	_corner_warnings = {}
 	_busy = true
 	_board_view.interactive = false
 	_board_view.hints = []
@@ -224,6 +323,8 @@ func _apply(cell: Vector2i) -> void:
 	_board_view.hints = []
 
 	var player := _turn
+	var warned := not _is_cpu_turn() and _corner_warnings.has(cell)
+	_corner_warnings = {}
 	var flipped := _board.apply_move(cell, player)
 	if flipped.is_empty():
 		# Unreachable through the click test, but a no-op beats a stuck screen.
@@ -240,6 +341,9 @@ func _apply(cell: Vector2i) -> void:
 		Juice.toast(CORNER_TOAST, Design.GOLD)
 	if flipped.size() >= TOAST_FLIP_FROM:
 		Juice.toast("Flipped %d." % flipped.size(), Design.CYAN)
+	if warned:
+		var foe_name := "White" if player == ReversiBoard.BLACK else "Black"
+		Juice.toast(COACH_TOAST % foe_name, Design.RED)
 
 	await _board_view.animation_finished
 	if not is_inside_tree() or _over:
@@ -315,6 +419,8 @@ func _restart() -> void:
 	_last_cell = BoardView.NO_CELL
 	_last_flips = 0
 	_played.clear()
+	_history.clear()
+	_corner_warnings = {}
 	_turn = ReversiBoard.BLACK
 	_refresh_panel()
 	Audio.play(&"start", -4.0)
@@ -323,6 +429,18 @@ func _restart() -> void:
 
 func _is_cpu_turn() -> bool:
 	return _mode == Session.Mode.CPU and _turn != _human
+
+
+## HARD is played without takebacks; every other match allows them.
+func _undo_allowed() -> bool:
+	return _mode == Session.Mode.HOTSEAT or _difficulty != ReversiAI.Level.HARD
+
+
+func _can_undo() -> bool:
+	return (
+		_undo_allowed() and not _busy and not _over and _pause == null
+		and not _is_cpu_turn() and _history.size() >= 2
+	)
 
 
 func _hint_cells() -> Array[Vector2i]:
@@ -372,13 +490,33 @@ func _on_hint_pressed() -> void:
 	_board_view.flash_hint(best)
 
 
-func _on_setting_changed(key: String, value: Variant) -> void:
-	if key != "game/show_hints":
+func _on_undo_pressed() -> void:
+	if not _can_undo():
 		return
-	_show_hints = bool(value)
+	_history.pop_back()
+	var snap: Dictionary = _history.pop_back()
+	_board = (snap["board"] as ReversiBoard).clone()
+	_turn = int(snap["turn"])
+	_last_cell = snap["last_cell"]
+	_last_flips = int(snap["last_flips"])
+	_played.assign(snap["played"])
+	_board_view.set_board(_board)
+	_board_view.last_move = _last_cell
+	_redraw_strip()
+	Audio.play(&"click")
+	_begin_turn()
+
+
+func _on_setting_changed(key: String, value: Variant) -> void:
+	match key:
+		"game/show_hints":
+			_show_hints = bool(value)
+		"game/coach":
+			_coach = bool(value)
+		_:
+			return
 	if not _busy and not _over:
-		_board_view.hints = _hint_cells()
-		_board_view.queue_redraw()
+		_arm_board()
 
 
 # --- Panel ------------------------------------------------------------------
@@ -400,6 +538,7 @@ func _refresh_panel() -> void:
 		_flip_label.text = "Flipped %d." % _last_flips
 
 	_hint_button.disabled = _over or _is_cpu_turn()
+	_undo_button.disabled = not _can_undo()
 
 
 ## File a to h left to right, rank 1 to 8 top to bottom, so the notation reads
@@ -412,6 +551,10 @@ func _algebraic(cell: Vector2i) -> String:
 ## on screen rather than an unreadable sixty-square ribbon.
 func _push_strip(player: int) -> void:
 	_played.append(player)
+	_redraw_strip()
+
+
+func _redraw_strip() -> void:
 	var slots := _strip.get_children()
 	while _played.size() > slots.size():
 		_played.remove_at(0)
@@ -520,3 +663,4 @@ func _close_sub() -> void:
 	if _pause != null:
 		_pause.suspend(false)
 	_show_hints = bool(Settings.get_value("game/show_hints", true))
+	_coach = bool(Settings.get_value("game/coach", true))

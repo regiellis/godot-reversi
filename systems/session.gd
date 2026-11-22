@@ -15,7 +15,7 @@ const BLACK := 1
 const WHITE := 2
 
 var mode: int = Mode.CPU
-var difficulty: int = 1 ## A ReversiAI.Level value.
+var difficulty: int = 0 ## A ReversiAI.Level value. EASY until the player picks.
 var human_player: int = BLACK
 var seed_value: int = 0
 
@@ -76,4 +76,4 @@ func reset() -> void:
 	seed_value = 0
 	result = {}
 	var settings := get_node_or_null(^"/root/Settings")
-	difficulty = 1 if settings == null else int(settings.get_value("game/difficulty", 1))
+	difficulty = 0 if settings == null else int(settings.get_value("game/difficulty", 0))

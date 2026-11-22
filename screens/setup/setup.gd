@@ -41,7 +41,7 @@ func _ready() -> void:
 	_opponents = [_easy, _normal, _hard, _two]
 	_colours = [_black, _white]
 
-	_opponent = clampi(int(Settings.get_value(DIFFICULTY_KEY, 1)), 0, TWO_PLAYERS)
+	_opponent = clampi(int(Settings.get_value(DIFFICULTY_KEY, 0)), 0, TWO_PLAYERS)
 	# The colour comes back off Session rather than off a settings key: it is
 	# already the last thing configure() was told, and it needs no second store.
 	_colour = 1 if Session.human_player == Session.WHITE else 0

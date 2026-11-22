@@ -30,11 +30,11 @@ const PAGE := Vector2(2560.0, 1440.0)
 const SCRIM_ALPHA := 0.72
 const TITLE := "SETTINGS"
 
-## Rows run in two columns, four then three. One column of seven does not fit
-## the page: seven rows at ROW_H, three of them carrying a helper line, plus the
-## title block and BACK comes to more than the 1184px the page margins leave,
-## whatever is done with the gap above BACK. Splitting also lands the three
-## helped rows together, which reads as a group rather than as a ragged tail.
+## Rows run in two columns, four and four. One column does not fit the page:
+## the rows at ROW_H, four of them carrying a helper line, plus the title block
+## and BACK come to more than the 1184px the page margins leave, whatever is
+## done with the gap above BACK. Splitting also lands the four helped rows
+## together, the play aids last, which reads as a group rather than as a tail.
 const COLUMN_SPLIT := 4
 
 ## Every setting the screen exposes, in the order it is drawn. `key` is the
@@ -80,7 +80,13 @@ const ROWS: Array[Dictionary] = [
 		"key": "game/show_hints",
 		"label": "SHOW LEGAL MOVES",
 		"kind": SettingRow.Kind.TOGGLE,
-		"helper": "Marks the cells where a move is legal.",
+		"helper": "Marks legal moves and previews the discs each one flips.",
+	},
+	{
+		"key": "game/coach",
+		"label": "COACH",
+		"kind": SettingRow.Kind.TOGGLE,
+		"helper": "Warns before a move that gives away a corner.",
 	},
 ]
 

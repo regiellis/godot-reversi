@@ -12,12 +12,18 @@ extends Control
 ## the menu and the board onto it, and the builder audits the same dictionary.
 
 const SETUP_PATH := "res://screens/setup/setup.tscn"
-const HOW_TO_PLAY_PATH := "res://screens/how_to_play/how_to_play.tscn"
+## HOW TO PLAY opens the playable tutorial. The rules on one page stay in the
+## pause menu and on the tutorial's last card.
+const TUTORIAL_PATH := "res://screens/tutorial/tutorial.tscn"
 const SETTINGS_PATH := "res://screens/settings/settings.tscn"
 const CREDITS_PATH := "res://screens/credits/credits.tscn"
 
 const WORDMARK := "REVERSI"
 const SUBTITLE := "A SWALLOWTAIL DEMO"
+
+## Shown beside HOW TO PLAY until the tutorial has been finished once.
+const NEW_TAG := "NEW? START HERE"
+const NEW_TAG_SKEW := Design.SPACE_SM
 
 ## The corner mark: the author on the first line, the repository on the second.
 const FOOTER_LINES: PackedStringArray = [
@@ -118,6 +124,19 @@ static func layout(page: Vector2) -> Dictionary:
 	# and the footer reading off three different left edges is what makes a screen
 	# look assembled rather than designed.
 	boxes["Footer"] = Rect2(column_x, footer_top, footer_w, footer_h)
+
+	# Beside the second menu row, HOW TO PLAY, centred on it. Always in the
+	# dictionary so the audit checks it whether or not it is showing.
+	var tag_text_w := tracked_width(use_font, NEW_TAG, Design.FS_SMALL, Design.TRACK_LABEL)
+	var tag_h := subtitle_h + Design.SPACE_XS * 2.0
+	var tag_w := tag_text_w + Design.SPACE_SM * 2.0 + NEW_TAG_SKEW
+	var menu_box: Rect2 = boxes["Menu"]
+	var row_two := menu_box.position.y + Design.BUTTON_H + Design.SPACE_MD
+	boxes["NewTag"] = Rect2(
+		column_x + Design.BUTTON_W + Design.SPACE_MD,
+		row_two + (Design.BUTTON_H - tag_h) * 0.5,
+		tag_w, tag_h
+	)
 
 	# The board's own right edge lands two page margins in, balancing the 320px
 	# the board geometry already carries on its left. The box is the framed
@@ -281,7 +300,7 @@ func _on_play_pressed() -> void:
 
 
 func _on_how_to_play_pressed() -> void:
-	Stage.go(HOW_TO_PLAY_PATH)
+	Stage.go(TUTORIAL_PATH)
 
 
 func _on_settings_pressed() -> void:
@@ -328,6 +347,25 @@ func _draw() -> void:
 	)
 
 	_draw_footer(use_font, boxes["Footer"])
+	if not bool(Settings.get_value("game/tutorial_done", false)):
+		_draw_new_tag(use_font, boxes["NewTag"])
+
+
+## A gold plate in the game's lean with ink type, the same treatment as the
+## selected menu button, so it reads as part of the menu rather than a sticker.
+func _draw_new_tag(use_font: Font, tag: Rect2) -> void:
+	var shadow := Vector2.ONE * float(Design.shadow_for(Design.FS_SMALL))
+	draw_colored_polygon(
+		Design.plate_offset(tag.size, tag.position + shadow, NEW_TAG_SKEW), Design.INK
+	)
+	draw_colored_polygon(
+		Design.plate_offset(tag.size, tag.position, NEW_TAG_SKEW), Design.GOLD
+	)
+	var origin := tag.position + Vector2(
+		Design.SPACE_SM + NEW_TAG_SKEW * 0.5,
+		Design.SPACE_XS + use_font.get_ascent(Design.FS_SMALL)
+	)
+	_draw_tracked(use_font, origin, NEW_TAG, Design.FS_SMALL, Design.INK, Design.TRACK_LABEL)
 
 
 ## The repository line takes the CYAN of a link at the alpha of the line above

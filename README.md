@@ -12,7 +12,7 @@ A complete Reversi game for Godot 4.7, built end to end by AI agents driving
 ![The title screen: the word REVERSI in a heavy display face beside a board playing itself](media/title.png)
 
 It exists as evidence, which is why it is a whole game rather than a scene: boot, splash, intro,
-title, setup, match, pause, settings, how to play, credits and result. The game says so itself on
+title, tutorial, setup, match, pause, settings, how to play, credits and result. The game says so itself on
 its first intro card.
 
 > [!IMPORTANT]
@@ -49,8 +49,11 @@ godot --path godot-reversi
 
 Godot 4.7 or newer. There is nothing to install: no addons, no plugins, no build step.
 
-Click a highlighted cell to place a disc. Escape opens the pause menu, and arrow keys with Enter
-drive every menu. Play the computer at one of three depths, or two people at one keyboard.
+Click a highlighted cell to place a disc. Hovering a legal cell previews the discs it would flip,
+and with COACH on, a red cross marks any corner the move would give away. HINT marks the
+computer's suggestion without playing it, and UNDO takes back a move against Easy or Normal and
+in a two-player game. Escape opens the pause menu, and arrow keys with Enter drive every menu.
+Play the computer at one of three depths, or two people at one keyboard.
 
 ![The match screen: an eight by eight board beside a panel column showing score, turn and last move](media/game.png)
 
@@ -58,27 +61,41 @@ drive every menu. Play the computer at one of three depths, or two people at one
 | --- | --- |
 | ![Choosing an opponent and a colour](media/setup.png) | ![The pause menu over a dimmed board](media/pause.png) |
 | ![The rules, five cards each with a small board diagram](media/how-to-play.png) | ![Settings: drawn sliders and toggles](media/settings.png) |
+| ![Lesson two of the tutorial: one move on the board previewing five flips](media/tutorial.png) | ![The result screen with the final score and the running record](media/result.png) |
 
 ## What it shows
 
 There are no sprites in the game. The board, the discs, the buttons, the sliders, the panels, the
 notification stack, and the screen transition are all drawn in `_draw()` out of polygons and text.
-Thirty GDScript files, eleven scenes, and the only images in the repository are the project icon and
-the screenshots above.
+Thirty-one GDScript files and twelve scenes make the game. The only images in the repository are
+the project icon, the screenshots above, and the itch.io store art in `media/itch/`, which
+`media/itch/render.gd` draws with the game's own board and backdrop code.
 
 The design box is 2560 by 1440, fitted to the window by `canvas_items` stretch. Drawing everything
 in code is what makes that resolution-independent: there is no bitmap to go soft when the box is
 scaled to a different screen.
 
-- **A whole game, not a single scene:** Eleven screens, wired through one `Stage` autoload that owns
+- **A whole game, not a single scene:** Twelve screens, wired through one `Stage` autoload that owns
   every scene change and the transition, so no screen calls `change_scene_to_file` itself.
 - **The rules live in exactly one file:** `core/reversi_board.gd` is a `RefCounted` with no engine
   dependency past `Vector2i`, so the same code answers the on-board hints, the click test, and the
   opponent's search. `flips_for` is the only function in the project that walks the eight rays, and
   every legality question routes back to it.
-- **An opponent at three depths:** `core/reversi_ai.gd` runs random-with-corners, then a positional
-  weight table, then alpha-beta with iterative deepening under a 60 ms budget that returns the best
-  move found so far when the time is spent.
+- **An opponent at three depths:** `core/reversi_ai.gd` runs random play that takes an offered
+  corner 15% of the time, then a positional weight table, then alpha-beta with iterative deepening
+  under a 60 ms budget that returns the best move found so far when the time is spent.
+- **Easy, tuned by simulation:** Easy first took every corner it was offered, and over 400 seeded
+  games a newcomer who always grabs the biggest capture won 30% against it, against 16% at Normal.
+  At the 15% corner chance that player wins 43%, so the first level is a step down from the
+  second. A new player starts on Easy.
+- **A tutorial played on the real board:** HOW TO PLAY opens five lessons, each a position the
+  player solves by playing it: place and flip, every direction, passing, corners, and not opening
+  a corner. A wrong move gets a reason, and the corner lesson plays the trap out, lets White take
+  the corner, and rewinds. Each lesson is one dictionary in `screens/tutorial/tutorial.gd`, and the
+  rules questions still go to `ReversiBoard`.
+- **Teaching on the board itself:** The flip preview, the coach's corner warning and its toast
+  after a move read from the same `ReversiBoard` the rules live in: the coach clones the board,
+  plays each legal move, and flags a corner only when that move opens it for the other side.
 - **Feel on a dial:** Screen shake, hit stop, the flip cascade, and the button springs all route
   through one `Juice` autoload with a single switch behind it. Turning it off silences what is
   already running rather than only blocking the next call, and the reduced motion setting drives the
@@ -148,7 +165,7 @@ The instruction that replaced them was to build it like a commercial game.
 
 Where the result departs from the brief, and why:
 
-- **One scene became eleven:** waived at the start, and the reason the project is worth reading.
+- **One scene became twelve:** waived at the start, and the reason the project is worth reading.
 - **`ScoreLabel` and `TurnLabel` became a panel column:** The brief's board geometry left most of
   the page empty beside the board, so the score, the side to move, the last move and the move
   history live in cards to the right of it instead of as labels above and below.
@@ -185,6 +202,20 @@ The third point produced the `AUTHOR` section on the credits screen, the labelle
 
 Publish it: say what the demo is, publish the brief it came from and the review that shaped it, add
 a licence file and version badges, and launch it as its own repository.
+
+### Third review
+
+**It starts off a little hard for people.**
+
+The claim was measured before anything changed. Two stand-in beginners, one playing at random and
+one always taking the biggest capture, played 100 seeded games against each level. They won 22%
+and 27% against Easy, barely more than the 23% and 16% they managed against Normal, because Easy
+took every corner it was offered. Easy now takes an offered corner 15% of the time, which the
+same measurement, rerun over 400 games, puts at 38% and 43%, and new players start on it.
+
+The rest of the round teaches the game rather than softening it: the flip preview on hover, the
+coach's corner warning, UNDO against Easy and Normal, and the five-lesson tutorial behind HOW TO
+PLAY. A check script played every lesson to completion, including each scripted wrong move.
 
 ## How it was built
 

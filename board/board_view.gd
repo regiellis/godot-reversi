@@ -36,6 +36,14 @@ const HIGHLIGHT_SCALE := 0.66 ## Of the disc radius. Inside the edge, not on it.
 const LAST_RING_PAD := Design.SPACE_XS
 const LAST_RING_WIDTH := 6.0
 
+## The landing disc in the flip preview: present, but plainly not placed yet.
+const PREVIEW_GHOST_ALPHA := 0.5
+## The pip inside each disc the previewed move would turn. Large enough to read
+## at a glance, small enough that the disc's own colour still shows around it.
+const PREVIEW_PIP_SCALE := 0.42
+
+const WARNING_FILL_ALPHA := 0.22
+
 const HOVER_WIDTH := 4.0
 const HOVER_ALPHA := 0.22
 const HOVER_LEGAL_ALPHA := 0.55
@@ -85,6 +93,16 @@ var board: ReversiBoard = null
 ## Cells to mark as legal. The screen decides whether to fill this, since the
 ## setting that hides hints is not the board's business.
 var hints: Array[Vector2i] = []
+
+## What hovering a legal cell previews: cell -> the discs that move would
+## flip, for [member preview_player]. Empty turns the preview off. The screen
+## fills it, so the setting that hides hints decides here too.
+var preview_moves: Dictionary = {}
+var preview_player: int = ReversiBoard.EMPTY
+
+## The coach's warnings: cell -> the corners that move would hand the other
+## side. Drawn only while that cell is hovered. Empty turns the coach off.
+var corner_warnings: Dictionary = {}
 
 var last_move: Vector2i = NO_CELL:
 	set(value):
@@ -148,6 +166,8 @@ func play_move(cell: Vector2i, player: int, flipped: Array[Vector2i]) -> void:
 	interactive = false
 	last_move = cell
 	hints = []
+	preview_moves = {}
+	corner_warnings = {}
 	_hint_cell = NO_CELL
 
 	if _tween != null and _tween.is_valid():
@@ -315,6 +335,8 @@ func _draw() -> void:
 	_draw_hints()
 	_draw_last_ring()
 	_draw_discs()
+	_draw_preview()
+	_draw_warnings()
 	_draw_hover()
 	_draw_hint_flash()
 
@@ -414,6 +436,55 @@ func _draw_disc(centre: Vector2, player: int, scale_x: float, drop: float) -> vo
 			RING_SEGMENTS, sheen, HIGHLIGHT_WIDTH, true
 		)
 	draw_set_transform_matrix(Transform2D.IDENTITY)
+
+
+## The move before it is made: a faint disc where it would land, and a small
+## disc of the mover's colour inside every disc it would turn. That is the rule
+## of the game shown rather than explained, which is what a new player lacks.
+func _draw_preview() -> void:
+	if not interactive or _hover == NO_CELL or not preview_moves.has(_hover):
+		return
+	var ghost := Design.disc_colour(preview_player)
+	ghost.a = PREVIEW_GHOST_ALPHA
+	var centre := Design.cell_centre(_hover)
+	draw_circle(centre, Design.DISC_RADIUS, ghost, true, -1.0, true)
+	var edge := Design.DISC_EDGE
+	edge.a = PREVIEW_GHOST_ALPHA
+	draw_circle(
+		centre, Design.DISC_RADIUS - DISC_EDGE_WIDTH * 0.5, edge,
+		false, DISC_EDGE_WIDTH, true
+	)
+	for cell: Vector2i in preview_moves[_hover]:
+		var at := Design.cell_centre(cell)
+		var radius := Design.DISC_RADIUS * PREVIEW_PIP_SCALE
+		draw_circle(at, radius, Design.disc_colour(preview_player), true, -1.0, true)
+		draw_circle(at, radius, Design.DISC_EDGE, false, DISC_EDGE_WIDTH * 0.5, true)
+
+
+## A corner the hovered move would give away, ringed in the last-move red with
+## a cross through it, so the cost of the move sits on the square it costs.
+func _draw_warnings() -> void:
+	if not interactive or _hover == NO_CELL or not corner_warnings.has(_hover):
+		return
+	var tint := Design.RED
+	for corner: Vector2i in corner_warnings[_hover]:
+		var centre := Design.cell_centre(corner)
+		var fill := tint
+		fill.a = WARNING_FILL_ALPHA
+		draw_rect(Design.cell_rect(corner).grow(-GRID_WIDTH), fill)
+		draw_arc(
+			centre, Design.DISC_RADIUS + LAST_RING_PAD, 0.0, TAU, RING_SEGMENTS,
+			tint, LAST_RING_WIDTH, true
+		)
+		var arm := Design.DISC_RADIUS * 0.5
+		draw_line(
+			centre - Vector2(arm, arm), centre + Vector2(arm, arm),
+			tint, LAST_RING_WIDTH, true
+		)
+		draw_line(
+			centre + Vector2(-arm, arm), centre + Vector2(arm, -arm),
+			tint, LAST_RING_WIDTH, true
+		)
 
 
 func _draw_hover() -> void:
