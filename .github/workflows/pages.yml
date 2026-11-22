@@ -132,12 +132,15 @@ jobs:
       # reports what happened and lets the run continue.
       - name: Publish the game to itch.io
         continue-on-error: true
-        if: github.ref == 'refs/heads/main' && env.BUTLER_API_KEY != ''
+        if: github.ref == 'refs/heads/main' && env.BUTLER_API_KEY != '' && vars.ITCH_TARGET != ''
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
-          # <itch username>/<project slug>:html. The username is paperenigma,
-          # not the GitHub handle; assuming they matched cost a failed run.
-          ITCH_TARGET: paperenigma/reversi:html
+          # <itch username>/<project slug>:html, from the repository variable so
+          # the account name lives in the repo settings rather than the source.
+          # The username is the itch account's, not the GitHub handle, and it
+          # changes when the account is renamed: butler then fails with "bad
+          # user" while the old address still redirects in a browser.
+          ITCH_TARGET: ${{ vars.ITCH_TARGET }}
         run: |
           set -euo pipefail
           curl -sSfL -o butler.zip             "https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default"

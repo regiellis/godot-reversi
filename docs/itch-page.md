@@ -135,6 +135,8 @@ button first and swap each `src` for the URL itch gives it.
 an API key from https://itch.io/user/settings/api-keys and add it to the repository as the secret
 `BUTLER_API_KEY`.
 
-The workflow pushes to `paperenigma/reversi:html`. If the project ends up at a different URL
-slug, change `ITCH_TARGET` in `.github/workflows/pages.yml` to match, or the push will fail with a
-project-not-found error.
+The workflow pushes to the target in the repository variable `ITCH_TARGET`, shaped
+`<itch username>/<project slug>:html`, and skips the push when the variable is unset. Set it with
+`gh variable set ITCH_TARGET -R regiellis/godot-reversi --body "<username>/reversi:html"`. A wrong
+slug fails with a project-not-found error. Renaming the itch account changes the username half:
+butler then fails with "bad user" even though the old address still redirects in a browser.
